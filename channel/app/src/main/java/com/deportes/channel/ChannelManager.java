@@ -31,9 +31,9 @@ public class ChannelManager {
     }
 
     private static void publish(Context context) throws Exception {
-        List<DataFetcher.Event> events = DataFetcher.fetchAll();
         long channelId = getOrCreateChannel(context);
         if (channelId <= 0) return;
+        List<DataFetcher.Event> events = DataFetcher.fetchAll();
         try {
             context.getContentResolver().delete(
                 TvContractCompat.buildPreviewProgramsUriForChannel(channelId), null, null);
@@ -58,11 +58,15 @@ public class ChannelManager {
         if (uri == null) return -1;
         id = ContentUris.parseId(uri);
         ChannelLogoUtils.storeChannelLogo(context, id, buildLogo());
-        try {
-            TvContractCompat.requestChannelBrowsable(context, id);
-        } catch (Exception e) { /* ignore */ }
         sp.edit().putLong(KEY_ID, id).apply();
         return id;
+    }
+
+    public static void requestBrowsable(Context context) {
+        long id = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getLong(KEY_ID, -1);
+        if (id > 0) {
+            try { TvContractCompat.requestChannelBrowsable(context, id); } catch (Exception e) { /* ignore */ }
+        }
     }
 
     private static Uri buildIntentUri(Context context) {

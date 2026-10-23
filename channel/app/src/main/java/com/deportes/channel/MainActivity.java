@@ -20,5 +20,7 @@ public class MainActivity extends Activity {
         wv.loadUrl("https://juanalboradait.github.io/tv-deportes/");
         setContentView(wv);
         ChannelManager.publishAsync(this);
+        new android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
+            new Runnable() { @Override public void run() { ChannelManager.requestBrowsable(MainActivity.this); } }, 2500);
     }
 }
