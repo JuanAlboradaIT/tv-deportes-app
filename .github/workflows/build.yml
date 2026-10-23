@@ -49,3 +49,26 @@ jobs:
         with:
           name: addon-apk
           path: addon/app/build/outputs/apk/release/app-release.apk
+
+  channel:
+    name: Deportes channel APK
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: android-actions/setup-android@v3
+        with:
+          packages: platforms;android-34 build-tools;34.0.0
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build channel
+        working-directory: channel
+        env:
+          FOOTBALL_KEY: ${{ secrets.FOOTBALL_KEY }}
+        run: bash gradlew --no-daemon assembleRelease
+      - uses: actions/upload-artifact@v4
+        with:
+          name: channel-apk
+          path: channel/app/build/outputs/apk/release/app-release.apk
