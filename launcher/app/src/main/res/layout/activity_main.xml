@@ -101,7 +101,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="top|left"
         android:layout_marginStart="60dp"
-        android:layout_marginTop="150dp"
+        android:layout_marginTop="126dp"
         android:orientation="vertical"
         android:focusable="false"
         android:importantForAccessibility="no"

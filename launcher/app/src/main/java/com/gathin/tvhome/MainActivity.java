@@ -2379,7 +2379,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         TextView title = new TextView(this);
         title.setText("Deportes");
         title.setTextColor(0xB3FFFFFF);
-        title.setTextSize(12f);
+        title.setTextSize(11f);
         title.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
         title.setLetterSpacing(0.22f);
         title.setAllCaps(true);
@@ -2388,7 +2388,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         for (Sports.Event e : events) {
             TextView row = new TextView(this);
             row.setText(sportsRow(e));
-            row.setTextSize(15f);
+            row.setTextSize(13f);
             row.setSingleLine(true);
             row.setEllipsize(android.text.TextUtils.TruncateAt.END);
             row.setMaxWidth((int) (density * 560));
