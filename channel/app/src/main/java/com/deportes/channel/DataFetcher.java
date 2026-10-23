@@ -8,18 +8,16 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.text.Normalizer;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 public class DataFetcher {
 
@@ -27,7 +25,6 @@ public class DataFetcher {
     private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
 
-    private static final Set<Integer> LEAGUES = new HashSet<>(Arrays.asList(140, 39, 2, 3, 848, 143, 141));
     private static final Map<Integer, String> LEAGUE_NAMES = new HashMap<>();
     static {
         LEAGUE_NAMES.put(140, "La Liga");
@@ -38,8 +35,8 @@ public class DataFetcher {
         LEAGUE_NAMES.put(143, "Copa del Rey");
         LEAGUE_NAMES.put(141, "Segunda División");
     }
-    private static final int SPAIN_TEAM = 9;
 
+    // Solo MotoGP (calendario estático). F1 va por Jolpica.
     private static final String[][] STATIC = {
         {"2026-10-24T04:00:00Z", "MotoGP", "MotoGP · GP Australia", "Sprint"},
         {"2026-10-25T03:00:00Z", "MotoGP", "MotoGP · GP Australia", "Carrera"},
@@ -51,7 +48,6 @@ public class DataFetcher {
         {"2026-11-22T13:00:00Z", "MotoGP", "MotoGP · GP Portugal", "Carrera"},
         {"2026-11-28T14:00:00Z", "MotoGP", "MotoGP · GP Valencia", "Sprint"},
         {"2026-11-29T13:00:00Z", "MotoGP", "MotoGP · GP Valencia", "Carrera"},
-        {"2026-11-08T12:00:00Z", "Resistencia", "WEC · 6 Horas de Monza", "Carrera"},
     };
 
     public static class Event {
@@ -116,6 +112,13 @@ public class DataFetcher {
         return (t != null && t.endsWith("Z")) ? t : t + "Z";
     }
 
+    private static boolean isPriorityTeam(String name) {
+        if (name == null) return false;
+        String n = Normalizer.normalize(name, Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "").toLowerCase();
+        return n.contains("real madrid") || n.contains("almeria");
+    }
+
     private static List<Event> fetchFootball(LocalDate today, LocalDate max) throws Exception {
         List<Event> out = new ArrayList<>();
         if (FOOTBALL_KEY == null || FOOTBALL_KEY.isEmpty()) return out;
@@ -128,12 +131,11 @@ public class DataFetcher {
                 JSONObject f = arr.getJSONObject(i);
                 JSONObject league = f.getJSONObject("league");
                 int lid = league.getInt("id");
-                JSONObject home = f.getJSONObject("teams").getJSONObject("home");
-                JSONObject away = f.getJSONObject("teams").getJSONObject("away");
-                boolean isSpain = home.getInt("id") == SPAIN_TEAM || away.getInt("id") == SPAIN_TEAM;
-                if (LEAGUES.contains(lid) || isSpain) {
-                    String comp = isSpain ? "Selección española" : (LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : league.getString("name"));
-                    String name = home.getString("name") + " vs " + away.getString("name");
+                String home = f.getJSONObject("teams").getJSONObject("home").getString("name");
+                String away = f.getJSONObject("teams").getJSONObject("away").getString("name");
+                if (isPriorityTeam(home) || isPriorityTeam(away)) {
+                    String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : league.getString("name");
+                    String name = home + " vs " + away;
                     String iso = f.getJSONObject("fixture").getString("date");
                     Event e = makeEvent("Fútbol", comp, name, iso);
                     if (!e.date.isBefore(today) && !e.date.isAfter(max)) out.add(e);
