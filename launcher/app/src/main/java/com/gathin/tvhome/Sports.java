@@ -29,9 +29,10 @@ final class Sports {
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
 
     static final class Event {
-        final String time, name, comp, iso;
+        final String time, name, comp, iso, day;
         Event(String time, String name, String comp, String iso) {
             this.time = time; this.name = name; this.comp = comp; this.iso = iso;
+            this.day = dayLabel(iso);
         }
     }
 
@@ -81,6 +82,23 @@ final class Sports {
 
     private static String timeOf(String iso) {
         return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).format(HM);
+    }
+
+    private static String dayLabel(String iso) {
+        LocalDate d = dateOf(iso);
+        LocalDate today = LocalDate.now(ZONE);
+        if (d.equals(today)) return "Hoy";
+        if (d.equals(today.plusDays(1))) return "Mañana";
+        String wd = d.getDayOfWeek().getDisplayName(
+                java.time.format.TextStyle.SHORT, java.util.Locale.forLanguageTag("es"));
+        return wd.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + wd.substring(1);
+    }
+
+    private static boolean isWomens(String name) {
+        if (name == null) return false;
+        String n = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
+        return n.contains("femenino") || n.contains("femenina") || n.contains("women")
+                || n.contains("woman") || n.contains("nwsl") || n.contains("wsl");
     }
 
     private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
@@ -133,8 +151,11 @@ final class Sports {
                 JSONObject f = arr.getJSONObject(i);
                 JSONObject league = f.getJSONObject("league");
                 int lid = league.getInt("id");
+                String leagueName = league.getString("name");
+                if (isWomens(leagueName)) continue;
                 String home = f.getJSONObject("teams").getJSONObject("home").getString("name");
                 String away = f.getJSONObject("teams").getJSONObject("away").getString("name");
+                if (isWomens(home) || isWomens(away)) continue;
                 if (priorityTeam(home) || priorityTeam(away)) {
                     String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : league.getString("name");
                     String iso = f.getJSONObject("fixture").getString("date");

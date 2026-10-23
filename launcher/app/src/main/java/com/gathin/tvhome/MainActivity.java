@@ -2392,17 +2392,21 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             row.setSingleLine(true);
             row.setEllipsize(android.text.TextUtils.TruncateAt.END);
             row.setMaxWidth((int) (density * 560));
-            sportsPanel.addView(row);
+            LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            lp.bottomMargin = (int) (density * 6);
+            sportsPanel.addView(row, lp);
         }
         sportsPanel.setVisibility(View.VISIBLE);
     }
 
     private android.text.Spannable sportsRow(Sports.Event e) {
+        String prefix = e.day + " " + e.time;
         android.text.SpannableString s = new android.text.SpannableString(
-                e.time + "  " + e.name + "   " + e.comp);
+                prefix + "  " + e.name + "   " + e.comp);
         s.setSpan(new android.text.style.ForegroundColorSpan(0xFF7DD3FC),
-                0, e.time.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        int comp = e.time.length() + 2 + e.name.length() + 3;
+                0, prefix.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        int comp = prefix.length() + 2 + e.name.length() + 3;
         s.setSpan(new android.text.style.ForegroundColorSpan(0x99FFFFFF),
                 comp, s.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         return s;
