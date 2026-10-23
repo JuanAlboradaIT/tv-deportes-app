@@ -9,10 +9,10 @@ import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.Paint;
 import android.net.Uri;
-import android.support.media.tv.Channel;
-import android.support.media.tv.ChannelLogoUtils;
-import android.support.media.tv.PreviewProgram;
-import android.support.media.tv.TvContractCompat;
+import androidx.tvprovider.media.tv.Channel;
+import androidx.tvprovider.media.tv.ChannelLogoUtils;
+import androidx.tvprovider.media.tv.PreviewProgram;
+import androidx.tvprovider.media.tv.TvContractCompat;
 
 import java.util.List;
 
