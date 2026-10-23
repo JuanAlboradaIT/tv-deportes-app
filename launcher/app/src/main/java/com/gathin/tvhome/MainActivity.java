@@ -183,6 +183,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     private List<RaceWeekend.Race> raceCalendar;
     private View racePanel;
     private TextView raceKicker, raceHeadline, raceSessions;
+    private LinearLayout sportsPanel;
     /** config.xml show_stats, overridable by a theme. Off: the line is gone and nothing is read. */
     private boolean showStats;
     private boolean shamsi;
@@ -442,6 +443,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         raceKicker = findViewById(R.id.raceKicker);
         raceHeadline = findViewById(R.id.raceHeadline);
         raceSessions = findViewById(R.id.raceSessions);
+        sportsPanel = findViewById(R.id.sportsPanel);
         showStats = cfg.showStats;
         shamsi = cfg.shamsiDate;
         greetingName = cfg.greetingName;
@@ -842,6 +844,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         if (openLiveTvAfterBoot()) return;
         updateGreeting();
         updateRace();
+        updateSports();
         // The network and Inputs pills keep their state while Home is in the background, and callbacks update them
         // when the network or the inputs change, so this refresh only catches anything missed. Its binder calls
         // (about 7 ms on a TCL C755, most of it WifiManager.getConnectionInfo) would hold up the first frame back
@@ -2340,6 +2343,69 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         }
         raceSessions.setText(row);
         racePanel.setVisibility(View.VISIBLE);
+    }
+
+    // ---- panel de deportes (Real Madrid, Almería, F1, MotoGP) ----------------------
+
+    private static final long SPORTS_MS = 15 * 60_000L;
+
+    private void updateSports() {
+        new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    final java.util.List<Sports.Event> events = Sports.fetch();
+                    runOnUiThread(new Runnable() {
+                        @Override public void run() {
+                            renderSports(events);
+                            root.removeCallbacks(sportsRefresh);
+                            root.postDelayed(sportsRefresh, SPORTS_MS);
+                        }
+                    });
+                } catch (Exception e) { /* sin red: se queda como estaba */ }
+            }
+        }).start();
+    }
+
+    private final Runnable sportsRefresh = new Runnable() {
+        @Override public void run() { updateSports(); }
+    };
+
+    private void renderSports(java.util.List<Sports.Event> events) {
+        sportsPanel.removeAllViews();
+        if (events == null || events.isEmpty()) {
+            sportsPanel.setVisibility(View.GONE);
+            return;
+        }
+        TextView title = new TextView(this);
+        title.setText("Deportes");
+        title.setTextColor(0xB3FFFFFF);
+        title.setTextSize(12f);
+        title.setTypeface(android.graphics.Typeface.create("sans-serif-medium", android.graphics.Typeface.NORMAL));
+        title.setLetterSpacing(0.22f);
+        title.setAllCaps(true);
+        title.setSingleLine(true);
+        sportsPanel.addView(title);
+        for (Sports.Event e : events) {
+            TextView row = new TextView(this);
+            row.setText(sportsRow(e));
+            row.setTextSize(15f);
+            row.setSingleLine(true);
+            row.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            row.setMaxWidth((int) (density * 560));
+            sportsPanel.addView(row);
+        }
+        sportsPanel.setVisibility(View.VISIBLE);
+    }
+
+    private android.text.Spannable sportsRow(Sports.Event e) {
+        android.text.SpannableString s = new android.text.SpannableString(
+                e.time + "  " + e.name + "   " + e.comp);
+        s.setSpan(new android.text.style.ForegroundColorSpan(0xFF7DD3FC),
+                0, e.time.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        int comp = e.time.length() + 2 + e.name.length() + 3;
+        s.setSpan(new android.text.style.ForegroundColorSpan(0x99FFFFFF),
+                comp, s.length(), android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        return s;
     }
 
     private void refreshPillsAfterNextDraw() {

@@ -1,0 +1,171 @@
+package com.gathin.tvhome;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.Normalizer;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * Eventos deportivos para el panel de la home (fork). Fuentes: F1 por Jolpica (sin clave),
+ * fútbol por API-Football (clave en BuildConfig) y MotoGP por calendario estático.
+ */
+final class Sports {
+
+    private static final String FOOTBALL_KEY = BuildConfig.FOOTBALL_KEY;
+    private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
+    private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
+
+    static final class Event {
+        final String time, name, comp, iso;
+        Event(String time, String name, String comp, String iso) {
+            this.time = time; this.name = name; this.comp = comp; this.iso = iso;
+        }
+    }
+
+    private static final Map<Integer, String> LEAGUE_NAMES = new HashMap<>();
+    static {
+        LEAGUE_NAMES.put(140, "La Liga");
+        LEAGUE_NAMES.put(39, "Premier League");
+        LEAGUE_NAMES.put(2, "Champions League");
+        LEAGUE_NAMES.put(3, "Europa League");
+        LEAGUE_NAMES.put(848, "Conference League");
+        LEAGUE_NAMES.put(143, "Copa del Rey");
+        LEAGUE_NAMES.put(141, "Segunda División");
+    }
+
+    private static final String[][] STATIC = {
+        {"2026-10-24T04:00:00Z", "MotoGP · GP Australia", "Sprint"},
+        {"2026-10-25T03:00:00Z", "MotoGP · GP Australia", "Carrera"},
+        {"2026-10-31T07:00:00Z", "MotoGP · GP Malasia", "Sprint"},
+        {"2026-11-01T07:00:00Z", "MotoGP · GP Malasia", "Carrera"},
+        {"2026-11-07T17:00:00Z", "MotoGP · GP Qatar", "Sprint"},
+        {"2026-11-08T17:00:00Z", "MotoGP · GP Qatar", "Carrera"},
+        {"2026-11-21T15:00:00Z", "MotoGP · GP Portugal", "Sprint"},
+        {"2026-11-22T13:00:00Z", "MotoGP · GP Portugal", "Carrera"},
+        {"2026-11-28T14:00:00Z", "MotoGP · GP Valencia", "Sprint"},
+        {"2026-11-29T13:00:00Z", "MotoGP · GP Valencia", "Carrera"},
+    };
+
+    static List<Event> fetch() throws Exception {
+        LocalDate today = LocalDate.now(ZONE);
+        LocalDate max = today.plusDays(3);
+        List<Event> out = new ArrayList<>();
+        out.addAll(fetchF1(today, max));
+        out.addAll(fetchFootball(today, max));
+        for (String[] s : STATIC) {
+            LocalDate d = dateOf(s[0]);
+            if (!d.isBefore(today) && !d.isAfter(max)) {
+                out.add(new Event(timeOf(s[0]), s[2], s[1], s[0]));
+            }
+        }
+        out.sort((a, b) -> a.iso.compareTo(b.iso));
+        return out;
+    }
+
+    private static LocalDate dateOf(String iso) {
+        return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).toLocalDate();
+    }
+
+    private static String timeOf(String iso) {
+        return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).format(HM);
+    }
+
+    private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
+        List<Event> out = new ArrayList<>();
+        int year = LocalDate.now(ZONE).getYear();
+        String json = httpGet("https://api.jolpi.ca/ergast/f1/" + year + ".json", null);
+        JSONArray races = new JSONObject(json).getJSONObject("MRData").getJSONObject("RaceTable").getJSONArray("Races");
+        for (int i = 0; i < races.length(); i++) {
+            JSONObject r = races.getJSONObject(i);
+            String raceName = r.getString("raceName").replace("Grand Prix", "GP").trim();
+            addSession(out, today, max, raceName, "Libres 1", r.optJSONObject("FirstPractice"));
+            addSession(out, today, max, raceName, "Libres 2", r.optJSONObject("SecondPractice"));
+            addSession(out, today, max, raceName, "Libres 3", r.optJSONObject("ThirdPractice"));
+            addSession(out, today, max, raceName, "Sprint", r.optJSONObject("Sprint"));
+            addSession(out, today, max, raceName, "Clasif.", r.optJSONObject("Qualifying"));
+            String iso = r.getString("date") + "T" + z(r.optString("time", "00:00:00Z"));
+            LocalDate d = dateOf(iso);
+            if (!d.isBefore(today) && !d.isAfter(max)) out.add(new Event(timeOf(iso), "Carrera", raceName, iso));
+        }
+        return out;
+    }
+
+    private static void addSession(List<Event> out, LocalDate today, LocalDate max, String comp, String name, JSONObject s) {
+        if (s == null) return;
+        String iso = s.optString("date", "") + "T" + z(s.optString("time", "00:00:00Z"));
+        if (iso.startsWith("T")) return;
+        LocalDate d = dateOf(iso);
+        if (!d.isBefore(today) && !d.isAfter(max)) out.add(new Event(timeOf(iso), name, comp, iso));
+    }
+
+    private static String z(String t) {
+        return (t != null && t.endsWith("Z")) ? t : t + "Z";
+    }
+
+    private static boolean priorityTeam(String name) {
+        if (name == null) return false;
+        String n = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
+        return n.contains("real madrid") || n.contains("almeria");
+    }
+
+    private static List<Event> fetchFootball(LocalDate today, LocalDate max) throws Exception {
+        List<Event> out = new ArrayList<>();
+        if (FOOTBALL_KEY == null || FOOTBALL_KEY.isEmpty()) return out;
+        for (int d = 0; d < 4; d++) {
+            String date = today.plusDays(d).toString();
+            String json = httpGet("https://v3.football.api-sports.io/fixtures?date=" + date, FOOTBALL_KEY);
+            JSONArray arr = new JSONObject(json).optJSONArray("response");
+            if (arr == null) continue;
+            for (int i = 0; i < arr.length(); i++) {
+                JSONObject f = arr.getJSONObject(i);
+                JSONObject league = f.getJSONObject("league");
+                int lid = league.getInt("id");
+                String home = f.getJSONObject("teams").getJSONObject("home").getString("name");
+                String away = f.getJSONObject("teams").getJSONObject("away").getString("name");
+                if (priorityTeam(home) || priorityTeam(away)) {
+                    String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : league.getString("name");
+                    String iso = f.getJSONObject("fixture").getString("date");
+                    LocalDate dd = dateOf(iso);
+                    if (!dd.isBefore(today) && !dd.isAfter(max)) {
+                        out.add(new Event(timeOf(iso), home + " vs " + away, comp, iso));
+                    }
+                }
+            }
+        }
+        return out;
+    }
+
+    private static String httpGet(String urlStr, String key) throws Exception {
+        HttpURLConnection c = (HttpURLConnection) new URL(urlStr).openConnection();
+        c.setRequestMethod("GET");
+        c.setConnectTimeout(15000);
+        c.setReadTimeout(20000);
+        c.setRequestProperty("User-Agent", "tvhome-sports/1.0");
+        if (key != null) c.setRequestProperty("x-apisports-key", key);
+        int code = c.getResponseCode();
+        InputStream is = (code >= 200 && code < 300) ? c.getInputStream() : c.getErrorStream();
+        BufferedReader r = new BufferedReader(new InputStreamReader(is, "UTF-8"));
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = r.readLine()) != null) sb.append(line);
+        r.close();
+        c.disconnect();
+        return sb.toString();
+    }
+
+    private Sports() {
+    }
+}

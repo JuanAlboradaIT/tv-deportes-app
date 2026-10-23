@@ -13,6 +13,11 @@ android {
         targetSdk 34
         versionCode 8
         versionName '2.7'
+        buildConfigField "String", "FOOTBALL_KEY", "\"${System.getenv('FOOTBALL_KEY') ?: ''}\""
+    }
+
+    buildFeatures {
+        buildConfig true
     }
 
     buildTypes {
