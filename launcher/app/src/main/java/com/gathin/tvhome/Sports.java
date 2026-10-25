@@ -138,13 +138,20 @@ final class Sports {
                 || n.contains("woman") || n.contains("nwsl") || n.contains("wsl");
     }
 
-    /** Primer equipo (no filial/B): "Real Madrid" sí, "Real Madrid II"/"Almería B" no. */
-    private static boolean isFirstTeam(String name, String target) {
+    /** Equipos de interés (primer equipo, sin filiales/B). */
+    private static final String[] PRIORITY_TEAMS = {
+        "real madrid", "almeria", "atletico", "barcelona",
+        "manchester united", "manchester city", "paris saint germain",
+        "liverpool", "arsenal",
+    };
+
+    private static boolean isPriorityTeam(String name) {
         if (name == null) return false;
         String n = normalize(name);
-        if (!n.contains(target)) return false;
-        return !(n.contains(" ii") || n.contains(" castilla") || n.contains(" b")
-                || n.contains("reserva") || n.contains("filial"));
+        if (n.contains(" ii") || n.contains(" castilla") || n.contains(" b")
+                || n.contains("reserva") || n.contains("filial")) return false;
+        for (String t : PRIORITY_TEAMS) if (n.contains(t)) return true;
+        return false;
     }
 
     private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
@@ -196,9 +203,9 @@ final class Sports {
                 String home = f.getJSONObject("teams").getJSONObject("home").getString("name");
                 String away = f.getJSONObject("teams").getJSONObject("away").getString("name");
                 if (isWomens(home) || isWomens(away)) continue;
-                boolean priority = isFirstTeam(home, "real madrid") || isFirstTeam(away, "real madrid")
-                        || isFirstTeam(home, "almeria") || isFirstTeam(away, "almeria");
-                if (!priority) continue;
+                boolean priority = isPriorityTeam(home) || isPriorityTeam(away);
+                boolean champions = lid == 2;
+                if (!priority && !champions) continue;
                 String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : leagueName;
                 String name = home + " vs " + away;
                 String iso = f.getJSONObject("fixture").getString("date");

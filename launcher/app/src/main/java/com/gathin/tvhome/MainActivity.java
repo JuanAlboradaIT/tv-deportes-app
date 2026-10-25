@@ -2385,17 +2385,33 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
         title.setAllCaps(true);
         title.setSingleLine(true);
         sportsPanel.addView(title);
-        for (Sports.Event e : events) {
+
+        // Dos columnas para que quepan más eventos.
+        LinearLayout columns = new LinearLayout(this);
+        columns.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout col1 = new LinearLayout(this);
+        col1.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout col2 = new LinearLayout(this);
+        col2.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams col2Lp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        col2Lp.setMarginStart((int) (density * 40));
+        columns.addView(col1);
+        columns.addView(col2, col2Lp);
+        sportsPanel.addView(columns);
+
+        for (int i = 0; i < events.size(); i++) {
+            Sports.Event e = events.get(i);
             TextView row = new TextView(this);
             row.setText(sportsRow(e));
             row.setTextSize(13f);
             row.setSingleLine(true);
             row.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            row.setMaxWidth((int) (density * 560));
+            row.setMaxWidth((int) (density * 400));
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = (int) (density * 6);
-            sportsPanel.addView(row, lp);
+            (i % 2 == 0 ? col1 : col2).addView(row, lp);
         }
         sportsPanel.setVisibility(View.VISIBLE);
     }
