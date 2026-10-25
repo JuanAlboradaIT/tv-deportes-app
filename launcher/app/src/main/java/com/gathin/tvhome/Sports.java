@@ -88,8 +88,9 @@ final class Sports {
         }
         fresh.sort((a, b) -> a.iso.compareTo(b.iso));
 
-        // Quedarnos con los 3 próximos días que tengan eventos.
-        return firstThreeDays(fresh);
+        // Quedarnos con los 3 próximos días que tengan eventos, máx. 20 (10 por columna).
+        List<Event> result = firstThreeDays(fresh);
+        return result.size() > 20 ? result.subList(0, 20) : result;
     }
 
     private static List<Event> firstThreeDays(List<Event> all) {
