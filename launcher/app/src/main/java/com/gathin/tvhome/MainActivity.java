@@ -2348,8 +2348,13 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
     // ---- panel de deportes (Real Madrid, Almería, F1, MotoGP) ----------------------
 
     private static final long SPORTS_MS = 15 * 60_000L;
+    private static final long SPORTS_COOLDOWN = 30 * 60_000L;
+    private long lastSportsFetch = 0;
 
     private void updateSports() {
+        long now = System.currentTimeMillis();
+        if (now - lastSportsFetch < SPORTS_COOLDOWN) return;
+        lastSportsFetch = now;
         new Thread(new Runnable() {
             @Override public void run() {
                 try {
@@ -2408,6 +2413,11 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             row.setSingleLine(true);
             row.setEllipsize(android.text.TextUtils.TruncateAt.END);
             row.setMaxWidth((int) (density * 400));
+            if (e.highlight) {
+                row.setTypeface(android.graphics.Typeface.create(android.graphics.Typeface.DEFAULT, android.graphics.Typeface.BOLD));
+            } else {
+                row.setAlpha(0.6f);
+            }
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = (int) (density * 6);

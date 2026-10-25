@@ -32,13 +32,15 @@ final class Sports {
     private static final String FOOTBALL_KEY = BuildConfig.FOOTBALL_KEY;
     private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
-    private static final int LOOKAHEAD_DAYS = 10;
+    private static final int LOOKAHEAD_DAYS = 14;
 
     static final class Event {
         final String time, name, comp, iso, day;
-        Event(String time, String name, String comp, String iso) {
+        final boolean highlight;
+        Event(String time, String name, String comp, String iso, boolean highlight) {
             this.time = time; this.name = name; this.comp = comp; this.iso = iso;
             this.day = dayLabel(iso);
+            this.highlight = highlight;
         }
     }
 
@@ -77,7 +79,7 @@ final class Sports {
         for (String[] s : STATIC) {
             LocalDate d = dateOf(s[0]);
             if (!d.isBefore(today) && !d.isAfter(max)) {
-                all.add(new Event(timeOf(s[0]), s[2], s[1], s[0]));
+                all.add(new Event(timeOf(s[0]), s[2], s[1], s[0], true));
             }
         }
 
@@ -88,25 +90,8 @@ final class Sports {
         }
         fresh.sort((a, b) -> a.iso.compareTo(b.iso));
 
-        // Quedarnos con los 3 próximos días que tengan eventos, máx. 20 (10 por columna).
-        List<Event> result = firstThreeDays(fresh);
-        return result.size() > 20 ? result.subList(0, 20) : result;
-    }
-
-    private static List<Event> firstThreeDays(List<Event> all) {
-        LinkedHashMap<LocalDate, List<Event>> byDay = new LinkedHashMap<>();
-        for (Event e : all) {
-            LocalDate d = dateOf(e.iso);
-            if (!byDay.containsKey(d)) byDay.put(d, new ArrayList<Event>());
-            byDay.get(d).add(e);
-        }
-        List<LocalDate> days = new ArrayList<>(byDay.keySet());
-        Collections.sort(days);
-        List<Event> out = new ArrayList<>();
-        for (int i = 0; i < days.size() && i < 3; i++) {
-            out.addAll(byDay.get(days.get(i)));
-        }
-        return out;
+        // Los 20 primeros (10 por columna), mirando hacia el futuro lo que haga falta.
+        return fresh.size() > 20 ? fresh.subList(0, 20) : fresh;
     }
 
     private static LocalDate dateOf(String iso) {
@@ -160,6 +145,14 @@ final class Sports {
         return false;
     }
 
+    /** Real Madrid y Almería (los que se destacan en negrita). */
+    private static boolean isHighlightTeam(String name) {
+        if (name == null) return false;
+        String n = normalize(name);
+        for (String m : RESERVE_MARKERS) if (n.contains(m)) return false;
+        return n.contains("real madrid") || n.contains("almeria");
+    }
+
     private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
         List<Event> out = new ArrayList<>();
         int year = LocalDate.now(ZONE).getYear();
@@ -175,7 +168,7 @@ final class Sports {
             addSession(out, today, max, raceName, "Clasif.", r.optJSONObject("Qualifying"));
             String iso = r.getString("date") + "T" + z(r.optString("time", "00:00:00Z"));
             LocalDate d = dateOf(iso);
-            if (!d.isBefore(today) && !d.isAfter(max)) out.add(new Event(timeOf(iso), "Carrera", raceName, iso));
+            if (!d.isBefore(today) && !d.isAfter(max)) out.add(new Event(timeOf(iso), "Carrera", raceName, iso, true));
         }
         return out;
     }
@@ -185,7 +178,7 @@ final class Sports {
         String iso = s.optString("date", "") + "T" + z(s.optString("time", "00:00:00Z"));
         if (iso.startsWith("T")) return;
         LocalDate d = dateOf(iso);
-        if (!d.isBefore(today) && !d.isAfter(max)) out.add(new Event(timeOf(iso), name, comp, iso));
+        if (!d.isBefore(today) && !d.isAfter(max)) out.add(new Event(timeOf(iso), name, comp, iso, true));
     }
 
     private static String z(String t) {
@@ -214,10 +207,11 @@ final class Sports {
                 if (!priority && !champions) continue;
                 String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : leagueName;
                 String name = home + " vs " + away;
+                boolean highlight = isHighlightTeam(home) || isHighlightTeam(away);
                 String iso = f.getJSONObject("fixture").getString("date");
                 LocalDate dd = dateOf(iso);
                 if (dd.isBefore(today) || dd.isAfter(max)) continue;
-                out.add(new Event(timeOf(iso), name, comp, iso));
+                out.add(new Event(timeOf(iso), name, comp, iso, highlight));
             }
         }
         return out;
