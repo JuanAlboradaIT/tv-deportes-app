@@ -66,16 +66,6 @@ final class Sports {
         {"2026-11-29T13:00:00Z", "MotoGP · GP Valencia", "Carrera"},
     };
 
-    // Clubes "grandes" para detectar partidazos (nombre normalizado, coincidencia por subcadena).
-    private static final String[] BIG = {
-        "real madrid", "barcelona", "atletico madrid", "atletico de madrid", "sevilla",
-        "manchester city", "arsenal", "liverpool", "manchester united", "chelsea", "tottenham",
-        "bayern", "dortmund", "leipzig", "leverkusen",
-        "juventus", "inter", "milan", "napoli", "roma", "atalanta",
-        "paris saint", "marseille", "monaco", "lyon",
-        "porto", "benfica", "sporting", "ajax", "psv", "feyenoord",
-    };
-
     static List<Event> fetch() throws Exception {
         LocalDate today = LocalDate.now(ZONE);
         LocalDate max = today.plusDays(LOOKAHEAD_DAYS);
@@ -157,13 +147,6 @@ final class Sports {
                 || n.contains("reserva") || n.contains("filial"));
     }
 
-    private static boolean isBigTeam(String name) {
-        if (name == null) return false;
-        String n = normalize(name);
-        for (String b : BIG) if (n.contains(b)) return true;
-        return false;
-    }
-
     private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
         List<Event> out = new ArrayList<>();
         int year = LocalDate.now(ZONE).getYear();
@@ -215,10 +198,9 @@ final class Sports {
                 if (isWomens(home) || isWomens(away)) continue;
                 boolean priority = isFirstTeam(home, "real madrid") || isFirstTeam(away, "real madrid")
                         || isFirstTeam(home, "almeria") || isFirstTeam(away, "almeria");
-                boolean partidazo = isBigTeam(home) && isBigTeam(away);
-                if (!priority && !partidazo) continue;
+                if (!priority) continue;
                 String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : leagueName;
-                String name = (partidazo ? "★ " : "") + home + " vs " + away;
+                String name = home + " vs " + away;
                 String iso = f.getJSONObject("fixture").getString("date");
                 LocalDate dd = dateOf(iso);
                 if (dd.isBefore(today) || dd.isAfter(max)) continue;
