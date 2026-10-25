@@ -2421,7 +2421,7 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
             LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             lp.bottomMargin = (int) (density * 6);
-            (i % 2 == 0 ? col1 : col2).addView(row, lp);
+            (i < 10 ? col1 : col2).addView(row, lp);
         }
         sportsPanel.setVisibility(View.VISIBLE);
     }

@@ -102,11 +102,6 @@ final class Sports {
         return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).format(HM);
     }
 
-    private static String normalize(String s) {
-        if (s == null) return "";
-        return Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
-    }
-
     private static String dayLabel(String iso) {
         LocalDate d = dateOf(iso);
         LocalDate today = LocalDate.now(ZONE);
@@ -117,40 +112,14 @@ final class Sports {
         return wd.substring(0, 1).toUpperCase(java.util.Locale.ROOT) + wd.substring(1);
     }
 
-    private static boolean isWomens(String name) {
-        if (name == null) return false;
-        String n = normalize(name);
-        return n.contains("femenino") || n.contains("femenina") || n.contains("women")
-                || n.contains("woman") || n.contains("nwsl") || n.contains("wsl");
-    }
+    /** IDs exactos de la API-Football de los equipos de interés (primer equipo). */
+    private static final int[] PRIORITY_TEAM_IDS = {541, 723, 530, 529, 33, 50, 85, 40, 42};
+    /** Real Madrid (541) y Almería (723): destacados en negrita. */
+    private static final int[] HIGHLIGHT_TEAM_IDS = {541, 723};
 
-    /** Equipos de interés (primer equipo, sin filiales/B). */
-    private static final String[] PRIORITY_TEAMS = {
-        "real madrid", "almeria", "atletico madrid", "atletico de madrid", "barcelona",
-        "manchester united", "manchester city", "paris saint germain",
-        "liverpool", "arsenal",
-    };
-
-    /** Indicadores de filial/B/reservas en el nombre (U21, U23, II, Castilla, B...). */
-    private static final String[] RESERVE_MARKERS = {
-        " b", " ii", " castilla", " u17", " u18", " u19", " u20", " u21", " u23", " u24",
-        " reserva", " filial", " reserves", " academy", " youth", " eds",
-    };
-
-    private static boolean isPriorityTeam(String name) {
-        if (name == null) return false;
-        String n = normalize(name);
-        for (String m : RESERVE_MARKERS) if (n.contains(m)) return false;
-        for (String t : PRIORITY_TEAMS) if (n.contains(t)) return true;
+    private static boolean contains(int[] ids, int id) {
+        for (int i : ids) if (i == id) return true;
         return false;
-    }
-
-    /** Real Madrid y Almería (los que se destacan en negrita). */
-    private static boolean isHighlightTeam(String name) {
-        if (name == null) return false;
-        String n = normalize(name);
-        for (String m : RESERVE_MARKERS) if (n.contains(m)) return false;
-        return n.contains("real madrid") || n.contains("almeria");
     }
 
     private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
@@ -197,17 +166,16 @@ final class Sports {
                 JSONObject f = arr.getJSONObject(i);
                 JSONObject league = f.getJSONObject("league");
                 int lid = league.getInt("id");
-                String leagueName = league.getString("name");
-                if (isWomens(leagueName)) continue;
-                String home = f.getJSONObject("teams").getJSONObject("home").getString("name");
-                String away = f.getJSONObject("teams").getJSONObject("away").getString("name");
-                if (isWomens(home) || isWomens(away)) continue;
-                boolean priority = isPriorityTeam(home) || isPriorityTeam(away);
+                JSONObject home = f.getJSONObject("teams").getJSONObject("home");
+                JSONObject away = f.getJSONObject("teams").getJSONObject("away");
+                int homeId = home.getInt("id");
+                int awayId = away.getInt("id");
+                boolean priority = contains(PRIORITY_TEAM_IDS, homeId) || contains(PRIORITY_TEAM_IDS, awayId);
                 boolean champions = lid == 2;
                 if (!priority && !champions) continue;
-                String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : leagueName;
-                String name = home + " vs " + away;
-                boolean highlight = isHighlightTeam(home) || isHighlightTeam(away);
+                String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : league.getString("name");
+                String name = home.getString("name") + " vs " + away.getString("name");
+                boolean highlight = contains(HIGHLIGHT_TEAM_IDS, homeId) || contains(HIGHLIGHT_TEAM_IDS, awayId);
                 String iso = f.getJSONObject("fixture").getString("date");
                 LocalDate dd = dateOf(iso);
                 if (dd.isBefore(today) || dd.isAfter(max)) continue;
