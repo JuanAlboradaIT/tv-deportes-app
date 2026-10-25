@@ -141,16 +141,21 @@ final class Sports {
 
     /** Equipos de interés (primer equipo, sin filiales/B). */
     private static final String[] PRIORITY_TEAMS = {
-        "real madrid", "almeria", "atletico", "barcelona",
+        "real madrid", "almeria", "atletico madrid", "atletico de madrid", "barcelona",
         "manchester united", "manchester city", "paris saint germain",
         "liverpool", "arsenal",
+    };
+
+    /** Indicadores de filial/B/reservas en el nombre (U21, U23, II, Castilla, B...). */
+    private static final String[] RESERVE_MARKERS = {
+        " b", " ii", " castilla", " u17", " u18", " u19", " u20", " u21", " u23", " u24",
+        " reserva", " filial", " reserves", " academy", " youth", " eds",
     };
 
     private static boolean isPriorityTeam(String name) {
         if (name == null) return false;
         String n = normalize(name);
-        if (n.contains(" ii") || n.contains(" castilla") || n.contains(" b")
-                || n.contains("reserva") || n.contains("filial")) return false;
+        for (String m : RESERVE_MARKERS) if (n.contains(m)) return false;
         for (String t : PRIORITY_TEAMS) if (n.contains(t)) return true;
         return false;
     }
