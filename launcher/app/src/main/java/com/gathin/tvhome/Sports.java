@@ -9,24 +9,30 @@ import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.text.Normalizer;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 /**
- * Eventos deportivos para el panel de la home (fork). Fuentes: F1 por Jolpica (sin clave),
- * fútbol por API-Football (clave en BuildConfig) y MotoGP por calendario estático.
+ * Eventos deportivos para el panel de la home (fork). F1 por Jolpica (sin clave), fútbol por
+ * API-Football (clave en BuildConfig) y MotoGP por calendario estático. Se muestran los 3 próximos
+ * días con eventos (saltando días vacíos) y se omiten los eventos con más de 3 horas.
  */
 final class Sports {
 
     private static final String FOOTBALL_KEY = BuildConfig.FOOTBALL_KEY;
     private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
+    private static final int LOOKAHEAD_DAYS = 10;
 
     static final class Event {
         final String time, name, comp, iso, day;
@@ -60,19 +66,55 @@ final class Sports {
         {"2026-11-29T13:00:00Z", "MotoGP · GP Valencia", "Carrera"},
     };
 
+    // Clubes "grandes" para detectar partidazos (nombre normalizado, coincidencia por subcadena).
+    private static final String[] BIG = {
+        "real madrid", "barcelona", "atletico madrid", "atletico de madrid", "sevilla",
+        "manchester city", "arsenal", "liverpool", "manchester united", "chelsea", "tottenham",
+        "bayern", "dortmund", "leipzig", "leverkusen",
+        "juventus", "inter", "milan", "napoli", "roma", "atalanta",
+        "paris saint", "marseille", "monaco", "lyon",
+        "porto", "benfica", "sporting", "ajax", "psv", "feyenoord",
+    };
+
     static List<Event> fetch() throws Exception {
         LocalDate today = LocalDate.now(ZONE);
-        LocalDate max = today.plusDays(3);
-        List<Event> out = new ArrayList<>();
-        out.addAll(fetchF1(today, max));
-        out.addAll(fetchFootball(today, max));
+        LocalDate max = today.plusDays(LOOKAHEAD_DAYS);
+        Instant cutoff = Instant.now().minus(Duration.ofHours(3));
+
+        List<Event> all = new ArrayList<>();
+        all.addAll(fetchF1(today, max));
+        all.addAll(fetchFootball(today, max));
         for (String[] s : STATIC) {
             LocalDate d = dateOf(s[0]);
             if (!d.isBefore(today) && !d.isAfter(max)) {
-                out.add(new Event(timeOf(s[0]), s[2], s[1], s[0]));
+                all.add(new Event(timeOf(s[0]), s[2], s[1], s[0]));
             }
         }
-        out.sort((a, b) -> a.iso.compareTo(b.iso));
+
+        // Omitir eventos que empezaron hace más de 3 horas.
+        List<Event> fresh = new ArrayList<>();
+        for (Event e : all) {
+            if (!OffsetDateTime.parse(e.iso).toInstant().isBefore(cutoff)) fresh.add(e);
+        }
+        fresh.sort((a, b) -> a.iso.compareTo(b.iso));
+
+        // Quedarnos con los 3 próximos días que tengan eventos.
+        return firstThreeDays(fresh);
+    }
+
+    private static List<Event> firstThreeDays(List<Event> all) {
+        LinkedHashMap<LocalDate, List<Event>> byDay = new LinkedHashMap<>();
+        for (Event e : all) {
+            LocalDate d = dateOf(e.iso);
+            if (!byDay.containsKey(d)) byDay.put(d, new ArrayList<Event>());
+            byDay.get(d).add(e);
+        }
+        List<LocalDate> days = new ArrayList<>(byDay.keySet());
+        Collections.sort(days);
+        List<Event> out = new ArrayList<>();
+        for (int i = 0; i < days.size() && i < 3; i++) {
+            out.addAll(byDay.get(days.get(i)));
+        }
         return out;
     }
 
@@ -82,6 +124,11 @@ final class Sports {
 
     private static String timeOf(String iso) {
         return OffsetDateTime.parse(iso).atZoneSameInstant(ZONE).format(HM);
+    }
+
+    private static String normalize(String s) {
+        if (s == null) return "";
+        return Normalizer.normalize(s, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
     }
 
     private static String dayLabel(String iso) {
@@ -96,9 +143,25 @@ final class Sports {
 
     private static boolean isWomens(String name) {
         if (name == null) return false;
-        String n = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
+        String n = normalize(name);
         return n.contains("femenino") || n.contains("femenina") || n.contains("women")
                 || n.contains("woman") || n.contains("nwsl") || n.contains("wsl");
+    }
+
+    /** Primer equipo (no filial/B): "Real Madrid" sí, "Real Madrid II"/"Almería B" no. */
+    private static boolean isFirstTeam(String name, String target) {
+        if (name == null) return false;
+        String n = normalize(name);
+        if (!n.contains(target)) return false;
+        return !(n.contains(" ii") || n.contains(" castilla") || n.contains(" b")
+                || n.contains("reserva") || n.contains("filial"));
+    }
+
+    private static boolean isBigTeam(String name) {
+        if (name == null) return false;
+        String n = normalize(name);
+        for (String b : BIG) if (n.contains(b)) return true;
+        return false;
     }
 
     private static List<Event> fetchF1(LocalDate today, LocalDate max) throws Exception {
@@ -133,16 +196,10 @@ final class Sports {
         return (t != null && t.endsWith("Z")) ? t : t + "Z";
     }
 
-    private static boolean priorityTeam(String name) {
-        if (name == null) return false;
-        String n = Normalizer.normalize(name, Normalizer.Form.NFD).replaceAll("\\p{M}", "").toLowerCase();
-        return n.contains("real madrid") || n.contains("almeria");
-    }
-
     private static List<Event> fetchFootball(LocalDate today, LocalDate max) throws Exception {
         List<Event> out = new ArrayList<>();
         if (FOOTBALL_KEY == null || FOOTBALL_KEY.isEmpty()) return out;
-        for (int d = 0; d < 4; d++) {
+        for (int d = 0; d < LOOKAHEAD_DAYS; d++) {
             String date = today.plusDays(d).toString();
             String json = httpGet("https://v3.football.api-sports.io/fixtures?date=" + date, FOOTBALL_KEY);
             JSONArray arr = new JSONObject(json).optJSONArray("response");
@@ -156,14 +213,16 @@ final class Sports {
                 String home = f.getJSONObject("teams").getJSONObject("home").getString("name");
                 String away = f.getJSONObject("teams").getJSONObject("away").getString("name");
                 if (isWomens(home) || isWomens(away)) continue;
-                if (priorityTeam(home) || priorityTeam(away)) {
-                    String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : league.getString("name");
-                    String iso = f.getJSONObject("fixture").getString("date");
-                    LocalDate dd = dateOf(iso);
-                    if (!dd.isBefore(today) && !dd.isAfter(max)) {
-                        out.add(new Event(timeOf(iso), home + " vs " + away, comp, iso));
-                    }
-                }
+                boolean priority = isFirstTeam(home, "real madrid") || isFirstTeam(away, "real madrid")
+                        || isFirstTeam(home, "almeria") || isFirstTeam(away, "almeria");
+                boolean partidazo = isBigTeam(home) && isBigTeam(away);
+                if (!priority && !partidazo) continue;
+                String comp = LEAGUE_NAMES.containsKey(lid) ? LEAGUE_NAMES.get(lid) : leagueName;
+                String name = (partidazo ? "★ " : "") + home + " vs " + away;
+                String iso = f.getJSONObject("fixture").getString("date");
+                LocalDate dd = dateOf(iso);
+                if (dd.isBefore(today) || dd.isAfter(max)) continue;
+                out.add(new Event(timeOf(iso), name, comp, iso));
             }
         }
         return out;
