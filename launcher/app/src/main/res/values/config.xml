@@ -17,6 +17,7 @@
 
     <!-- Apps pinned to the dock row at the bottom, in this order. Missing apps are skipped. -->
     <string-array name="dock_apps">
+        <item>com.mediatek.wwtv.tvcenter</item>
         <item>com.ottplay.ottplay</item>
         <item>com.dixmaxteam.dixmax.androidtv</item>
         <item>org.smarttube.stable</item>
