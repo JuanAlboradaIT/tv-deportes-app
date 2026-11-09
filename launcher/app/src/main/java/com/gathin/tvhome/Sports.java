@@ -28,7 +28,10 @@ import java.util.List;
 final class Sports {
 
     /** JSON generado cada 4h por el Action de GitHub Pages. */
-    private static final String URL = "https://juanalboradait.github.io/tv-deportes/sports.json";
+    private static final String[] URLS = {
+            "https://juanalboradait.github.io/tv-deportes/sports.json",
+            "https://raw.githubusercontent.com/JuanAlboradaIT/tv-deportes/master/sports.json"
+    };
     private static final ZoneId ZONE = ZoneId.of("Europe/Madrid");
     private static final DateTimeFormatter HM = DateTimeFormatter.ofPattern("HH:mm");
     private static final int MAX_EVENTS = 20;
@@ -45,7 +48,19 @@ final class Sports {
     }
 
     static List<Event> fetch() throws Exception {
-        String json = httpGet(URL);
+        Exception last = null;
+        for (String base : URLS) {
+            try {
+                // El parámetro evita servir una copia cacheada tras cambiar el JSON.
+                return parse(httpGet(base + "?t=" + System.currentTimeMillis()));
+            } catch (Exception e) {
+                last = e;
+            }
+        }
+        throw last != null ? last : new Exception("sin datos de deportes");
+    }
+
+    private static List<Event> parse(String json) throws Exception {
         JSONArray arr = new JSONArray(json);
 
         Instant cutoff = Instant.now().minus(Duration.ofHours(CUTOFF_HOURS));
@@ -58,7 +73,8 @@ final class Sports {
             fresh.add(new Event(timeOf(iso), o.getString("name"), o.getString("comp"), iso,
                     o.optBoolean("highlight", false)));
         }
-        fresh.sort((a, b) -> a.iso.compareTo(b.iso));
+        fresh.sort((a, b) -> OffsetDateTime.parse(a.iso).toInstant()
+                .compareTo(OffsetDateTime.parse(b.iso).toInstant()));
         return fresh.size() > MAX_EVENTS ? fresh.subList(0, MAX_EVENTS) : fresh;
     }
 
