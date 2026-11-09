@@ -2347,11 +2347,15 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
 
     // ---- panel de deportes (Real Madrid, Almería, F1, MotoGP) ----------------------
 
-    private static final long SPORTS_MS = 15 * 60_000L;
-    private static final long SPORTS_COOLDOWN = 30 * 60_000L;
+    private static final long SPORTS_MS = 15 * 60_000L;       // comprobar cada 15 min
+    private static final long SPORTS_COOLDOWN = 10 * 60_000L; // no repetir antes de 10 min
     private long lastSportsFetch = 0;
 
     private void updateSports() {
+        // El tick se reprograma siempre: si no, un intento dentro del cooldown pararía
+        // el refresco hasta volver a la Home.
+        root.removeCallbacks(sportsRefresh);
+        root.postDelayed(sportsRefresh, SPORTS_MS);
         long now = System.currentTimeMillis();
         if (now - lastSportsFetch < SPORTS_COOLDOWN) return;
         lastSportsFetch = now;
@@ -2362,8 +2366,6 @@ public class MainActivity extends Activity implements AppAdapter.TileListener {
                     runOnUiThread(new Runnable() {
                         @Override public void run() {
                             renderSports(events);
-                            root.removeCallbacks(sportsRefresh);
-                            root.postDelayed(sportsRefresh, SPORTS_MS);
                         }
                     });
                 } catch (Exception e) { /* sin red: se queda como estaba */ }
